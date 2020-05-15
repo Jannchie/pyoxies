@@ -1,11 +1,11 @@
 import requests
-from queue import SimpleQueue
+from queue import Queue
 from lxml.etree import HTML
 from time import sleep
 from util import logger
 
 
-def get_proxies_from_hua(proxies: SimpleQueue):
+def get_proxies_from_hua(proxies: Queue):
   try:
     url = 'http://106.15.91.109:22333/ok_ips'
     res = requests.get(url)
@@ -17,7 +17,7 @@ def get_proxies_from_hua(proxies: SimpleQueue):
     pass
 
 
-def get_proxies_from_sslproxies(proxies: SimpleQueue):
+def get_proxies_from_sslproxies(proxies: Queue):
   try:
     urls = [
         'https://free-proxy-list.net/',
@@ -38,7 +38,7 @@ def get_proxies_from_sslproxies(proxies: SimpleQueue):
     pass
 
 
-def get_proxies_from_xicidaili(proxies: SimpleQueue):
+def get_proxies_from_xicidaili(proxies: Queue):
   try:
     for page in range(1, 3):
       sleep(1)

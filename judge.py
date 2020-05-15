@@ -1,7 +1,7 @@
 from time import sleep
 import threading
 from datetime import datetime
-from queue import SimpleQueue
+from queue import Queue
 import aiohttp
 import asyncio
 from util import logger
@@ -38,7 +38,7 @@ class ProxyAdjudicator():
     logger.info(f'[{state}] ({code}) {t}s {proxy}')
     return flag
 
-  async def _judge_task(self, judge_queue: SimpleQueue, result_set: set, session):
+  async def _judge_task(self, judge_queue: Queue, result_set: set, session):
     while not judge_queue.empty():
       self.count += 1
       proxy = judge_queue.get()
@@ -47,7 +47,7 @@ class ProxyAdjudicator():
       if is_pass:
         result_set.add(proxy)
 
-  async def _start_judge_task(self, judge_queue: SimpleQueue, result_set: set):
+  async def _start_judge_task(self, judge_queue: Queue, result_set: set):
     if not judge_queue.empty():
       session = aiohttp.ClientSession()
       concurrence = 32

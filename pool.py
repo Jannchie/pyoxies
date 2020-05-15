@@ -1,5 +1,5 @@
 import logging
-from queue import SimpleQueue
+from queue import Queue
 from spider import get_proxies_from_xicidaili, get_proxies_from_sslproxies, get_proxies_from_hua
 from judge import ProxyAdjudicator
 from util import logger
@@ -9,7 +9,7 @@ import asyncio
 
 class ProxyPool():
   def __init__(self):
-    self.raw_proxies = SimpleQueue()
+    self.raw_proxies = Queue()
     self.proxy_set = set()
 
     self.pc = ProxyCollector()
