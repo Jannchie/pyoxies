@@ -16,7 +16,6 @@ class ProxyPool():
     self.pa = ProxyAdjudicator()
 
     self.proxy_gener = self._single_proxy_gener()
-    self._lock = threading.Lock()
 
   def build_proxy_set(self):
     self.pc.call_spiders(self.raw_proxies)
@@ -44,9 +43,7 @@ class ProxyPool():
 
   def get_one_proxy(self):
     try:
-      self._lock.acquire()
       return next(self.proxy_gener)
-      self._lock.release()
     except Exception:
       self.proxy_gener = self._single_proxy_gener()
       return ''

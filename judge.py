@@ -47,14 +47,16 @@ class ProxyAdjudicator():
       if is_pass:
         result_set.add(proxy)
 
-  async def _start_judge_task(self, judge_queue: SimpleQueue, result_set: set, session):
+  async def _start_judge_task(self, judge_queue: SimpleQueue, result_set: set):
     if not judge_queue.empty():
+      session = aiohttp.ClientSession()
       concurrence = 32
       tasks = [self._judge_task(judge_queue, result_set, session)
                for i in range(concurrence)]
       await asyncio.wait(tasks)
       logger.critical(f"Totail Proxies: {self.count}")
       logger.critical(f"Available Proxies: {len(result_set)}")
+      await session.close()
 
   async def _rejudge_proxy(self, proxy, remove_set: set, session):
     code, time = await self._get_judge_result(proxy, session)
@@ -64,7 +66,8 @@ class ProxyAdjudicator():
     else:
       logger.info(f"[ \033[1;32m REMAIN \033[0m ] {proxy}")
 
-  async def _rejudge(self, proxy_set: set, session):
+  async def _rejudge(self, proxy_set: set):
+    session = aiohttp.ClientSession()
     remove_set = set()
     temp_proxy_list = list(proxy_set)
     tasks = [asyncio.ensure_future(self._rejudge_proxy(
@@ -72,22 +75,21 @@ class ProxyAdjudicator():
     await asyncio.wait(tasks)
     proxy_set.difference_update(remove_set)
     logger.critical(f"Available Proxies: {len(proxy_set)}")
+    await session.close()
 
   def rejudge(self, proxy_set):
     logger.critical("Rejudge Proxies Quality")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    session = aiohttp.ClientSession()
-    loop.run_until_complete(self._rejudge(proxy_set, session))
-    loop.run_until_complete(session.close())
+
+    loop.run_until_complete(self._rejudge(proxy_set))
     loop.close()
 
   def judge_proxies_quality(self, raw_proxies, proxy_set):
     logger.critical("Judge Proxies Quality")
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    session = aiohttp.ClientSession()
+
     loop.run_until_complete(self._start_judge_task(
-        raw_proxies, proxy_set, session))
-    loop.run_until_complete(session.close())
+        raw_proxies, proxy_set))
     loop.close()

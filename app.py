@@ -55,6 +55,12 @@ def hello_world():
   return '[GET] /proxy 获得一个代理\n'
 
 
+@app.route('/proxies')
+def get_all():
+  l = [ip for ip in pp.proxy_set]
+  return jsonify({'proxies': l})
+
+
 @app.route('/proxy', methods=['GET', 'POST', 'DELETE'])
 def get_one():
   if request.method == 'GET':
