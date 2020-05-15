@@ -20,8 +20,8 @@ def get_proxies_from_hua(proxies: Queue):
 def get_proxies_from_sslproxies(proxies: Queue):
   try:
     urls = [
-        'https://free-proxy-list.net/',
-        'https://www.sslproxies.org/'
+        # 'https://free-proxy-list.net/',
+        # 'https://www.sslproxies.org/'
     ]
     for url in urls:
       res = requests.get(url)
