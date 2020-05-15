@@ -57,8 +57,8 @@ class ProxyCollector():
     logger.critical("Get Proxies From Hua")
     get_proxies_from_hua(raw_proxies)
 
-    # logger.critical("Get Proxies From XiCi")
-    # get_proxies_from_xicidaili(raw_proxies)
+    logger.critical("Get Proxies From XiCi")
+    get_proxies_from_xicidaili(raw_proxies)
 
-    # logger.critical("Get Proxies From SSLProxies")
-    # get_proxies_from_sslproxies(raw_proxies)
+    logger.critical("Get Proxies From SSLProxies")
+    get_proxies_from_sslproxies(raw_proxies)
