@@ -4,6 +4,7 @@ from spider import get_proxies_from_xicidaili, get_proxies_from_sslproxies, get_
 from judge import ProxyAdjudicator
 from util import logger
 import threading
+import asyncio
 
 
 class ProxyPool():
@@ -43,12 +44,12 @@ class ProxyPool():
 
   def get_one_proxy(self):
     try:
-      lock.acquire()
+      self._lock.acquire()
       return next(self.proxy_gener)
-      lock.release()
+      self._lock.release()
     except Exception:
       self.proxy_gener = self._single_proxy_gener()
-      return None
+      return ''
 
 
 class ProxyCollector():
