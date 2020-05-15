@@ -12,7 +12,7 @@ from util import logger
 app = Flask(__name__)
 
 log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+log.setLevel(logging.WARNING)
 
 
 pp = ProxyPool()
@@ -24,13 +24,8 @@ def get_proxy_set_length():
   logger.critical(f'Available Proxies Count: {len(pp.proxy_set)}')
 
 
-def single_proxy_gener():
-  while True:
-    for proxy in pp.proxy_set:
-      yield proxy
-
-
-get_one_proxy = single_proxy_gener()
+def get_one_proxy():
+  proxy_gener = single_proxy_gener()
 
 
 @app.route('/rejudge')
@@ -63,7 +58,7 @@ def hello_world():
 @app.route('/proxy', methods=['GET', 'POST', 'DELETE'])
 def get_one():
   if request.method == 'GET':
-    return next(get_one_proxy)
+    return pp.get_one_proxy()
   elif request.method == 'POST':
     pc.raw_proxies.put({'address': request.get_data().decode("utf-8"),
                         'protocol': 'https', 'type': 'unknown'})
@@ -73,7 +68,7 @@ def get_one():
 
 
 scheduler = BackgroundScheduler()
-job = scheduler.add_job(get_proxy_set_length, 'interval', minutes=1)
-job = scheduler.add_job(add_multi_proxy, 'interval', minutes=15)
-job = scheduler.add_job(rejudge, 'interval', minutes=5)
+scheduler.add_job(get_proxy_set_length, 'interval', minutes=1)
+scheduler.add_job(add_multi_proxy, 'interval', minutes=15)
+scheduler.add_job(rejudge, 'interval', minutes=5)
 scheduler.start()

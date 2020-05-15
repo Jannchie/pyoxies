@@ -9,7 +9,7 @@ from util import logger
 
 class ProxyAdjudicator():
   def __init__(self):
-
+    self.session = None
     self.count = 0
 
   async def _get_judge_result(self, proxy):
@@ -53,7 +53,8 @@ class ProxyAdjudicator():
       concurrence = 32
       loop = asyncio.new_event_loop()
       asyncio.set_event_loop(loop)
-      self.session = aiohttp.ClientSession()
+      if self.session == None or self.session.closed:
+        self.session = aiohttp.ClientSession()
       tasks = [self._judge_task(judge_queue, result_set)
                for i in range(concurrence)]
       loop.run_until_complete(asyncio.wait(tasks))
@@ -62,7 +63,7 @@ class ProxyAdjudicator():
       loop.run_until_complete(asyncio.wait([self.session.close()]))
       loop.close()
 
-  async def _rejudge_proxy(self, proxy, remove_set):
+  async def _rejudge_proxy(self, proxy, remove_set: set):
     code, time = await self._get_judge_result(proxy)
     if code != 200 or time > 5:
       remove_set.add(proxy)
@@ -70,17 +71,18 @@ class ProxyAdjudicator():
     else:
       logger.info(f"[ \033[1;32m REMAIN \033[0m ] {proxy}")
 
-  async def _rejudge(self, result_set: set):
+  async def _rejudge(self, proxy_set: set):
     remove_set = set()
     for proxy in proxy_set:
-      _rejudge_proxy(proxy, remove_set)
+      await self._rejudge_proxy(proxy, remove_set)
     proxy_set.difference_update(remove_set)
     logger.critical(f"Available Proxies: {len(proxy_set)}")
 
   def rejudge(self, proxy_set: set):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    self.session = aiohttp.ClientSession()
+    if self.session == None or self.session.closed:
+      self.session = aiohttp.ClientSession()
     loop.run_until_complete(asyncio.wait([self._rejudge(proxy_set)]))
     loop.run_until_complete(asyncio.wait([self.session.close()]))
     loop.close()
