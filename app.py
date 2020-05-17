@@ -1,9 +1,8 @@
+from main import ProxyPool
 import logging
 from logging.config import dictConfig
-from apscheduler.schedulers.background import BackgroundScheduler
-from concurrent.futures import ThreadPoolExecutor
+
 from flask import request
-from pool import ProxyPool
 from flask import Flask, jsonify
 from random import randint
 import schedule
@@ -15,66 +14,65 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.WARNING)
 
 
-pp = ProxyPool()
-pp.build_proxy_set()
-
-
-def get_proxy_set_length():
-  global pp
-  logger.critical(f'Available Proxies Count: {len(pp.proxy_set)}')
-
-
-def get_one_proxy():
-  proxy_gener = single_proxy_gener()
-
-
-@app.route('/rejudge')
-def rejudge():
-  logger.critical(f'Rejudge Proxies Started!')
-  with ThreadPoolExecutor(2) as executor:
-    executor.submit(pp.rejudge_proxy_set())
-  logger.critical(f'Rejudge Proxies Finished!')
-  return 'ok'
-
-
-@app.route('/proxy/add')
-def add_multi_proxy():
-  logger.critical(f'Adding Proxies Started!')
-  count = len(pp.proxy_set)
-  if count > 100:
-    logger.critical(f'Available Proxies Enough (Count = {count})')
-    return 'ok'
-  with ThreadPoolExecutor(2) as executor:
-    executor.submit(pp.add_proxy_set())
-  logger.critical(f'Adding Proxies Finished!')
-  return 'ok'
-
-
 @app.route('/')
 def hello_world():
-  return '[GET] /proxy 获得一个代理\n'
+  return'''
+  <table>
+    <tr>
+      <td>[GET]</td>
+      <td>/proxy</td>
+      <td>获得所有的代理</td>
+    </tr>
+    <tr>
+      <td>[GET]</td>
+      <td>/proxy</td>
+      <td>获得所有的代理</td>
+    </tr>
+    <tr>
+      <td>[GET]</td>
+      <td>/proies/http</td>
+      <td>获得所有的HTTP代理</td>
+    </tr>
+    <tr>
+      <td>[GET]</td>
+      <td>/proies/https</td>
+      <td>获得所有的HTTPS代理</td>
+    </tr>
+    <tr>
+      <td>[POST]</td>
+      <td>/proies</td>
+      <td>添加一个代理</td>
+    </tr>
+  </table>
+  '''
 
 
 @app.route('/proxies')
 def get_all():
-  l = [ip for ip in pp.proxy_set]
-  return jsonify({'proxies': l})
+  return jsonify({'proxies': pp.get_all_proxy()})
+
+
+@app.route('/proxies/http')
+def get_http():
+  return jsonify({'proxies': pp.get_http_proxy()})
+
+
+@app.route('/proxies/https')
+def get_https():
+  return jsonify({'proxies': pp.get_https_proxy()})
 
 
 @app.route('/proxy', methods=['GET', 'POST', 'DELETE'])
 def get_one():
   if request.method == 'GET':
-    return pp.get_one_proxy()
+    return jsonify({'proxies': pp.get_all_proxy()})
   elif request.method == 'POST':
-    pc.raw_proxies.put({'address': request.get_data().decode("utf-8"),
-                        'protocol': 'https', 'type': 'unknown'})
+    pc.put_proxy(request.get_data().decode("utf-8"))
     return "SUCCESS"
   elif request.method == 'DELETE':
     pass
 
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(get_proxy_set_length, 'interval', minutes=1)
-scheduler.add_job(add_multi_proxy, 'interval', minutes=15)
-scheduler.add_job(rejudge, 'interval', minutes=5)
-scheduler.start()
+if __name__ == "__main__":
+  pp = ProxyPool()
+  app.run()
