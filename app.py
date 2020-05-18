@@ -13,6 +13,8 @@ app = Flask(__name__)
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.WARNING)
 
+pp = ProxyPool()
+
 
 @app.route('/')
 def hello_world():
@@ -62,17 +64,14 @@ def get_https():
   return jsonify({'proxies': pp.get_https_proxy()})
 
 
-@app.route('/proxy', methods=['GET', 'POST', 'DELETE'])
+@app.route('/proxy', methods=['GET', 'POST'])
 def get_one():
   if request.method == 'GET':
     return jsonify({'proxies': pp.get_all_proxy()})
   elif request.method == 'POST':
     pc.put_proxy(request.get_data().decode("utf-8"))
     return "SUCCESS"
-  elif request.method == 'DELETE':
-    pass
 
 
 if __name__ == "__main__":
-  pp = ProxyPool()
   app.run()
