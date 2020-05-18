@@ -67,7 +67,7 @@ class ProxyPool():
       temp_proxies = list(self.available_http_proxy_set)
       temp_proxies += list(self.available_https_proxy_set)
       for proxy in temp_proxies:
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.01)
         await self.review_proxy_queue.put(proxy)
         pass
 
