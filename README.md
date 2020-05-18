@@ -37,7 +37,7 @@ Or
 
 ``` bash
 $ export FLASK_APP=app.py
-$ flask run --port 127.0.0.1 --port 52047
+$ flask run --host 0.0.0.0 --port 52047
  * Running on http://127.0.0.1:52047/
 ```
 
