@@ -200,15 +200,25 @@ class ProxyPool():
       try:
         res = await session.get(
             f'{protocol}://api.bilibili.com/x/relation/stat?vmid=7', proxy=proxy, timeout=4)
+        j = await res.json()
+        mid_1 = j['data']['mid']
+        res = await session.get(
+            f'{protocol}://api.bilibili.com/x/relation/stat?vmid=1850091', proxy=proxy, timeout=4)
+        j = await res.json()
+        mid_2 = j['data']['mid']
+        if mid_1 == mid_2:
+          delta_t = datetime.now() - start_t
+          return ('cac', round(delta_t.total_seconds() / 2, 1), 'cache')
       except Exception as e:
         if protocol == 'https':
           continue
         else:
-          return ('???', 9.9, '?????')
+          delta_t = datetime.now() - start_t
+          return ('???', round(delta_t.total_seconds() / 2, 1), '?????')
       if res.status != 200:
         return (res.status, 9.9, protocol)
       delta_t = datetime.now() - start_t
-      return (res.status, round(delta_t.total_seconds(), 1), protocol)
+      return (res.status, round(delta_t.total_seconds() / 2, 1), protocol)
 
   async def __judge_ip(self, proxy, session, name):
     code, t, protocol = await self.__get_judge_result(proxy, session)
