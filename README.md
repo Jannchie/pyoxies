@@ -5,7 +5,8 @@ Free Python Proxy Pool
 ## Feature
 
 - Auto crawl free proxies
-- Auto Adjust proxies quailty
+- Auto judge proxies quailty
+- Auto Adjust crawl and review interval
 - Easy to integrate
 
 This is a web application, by maintaining a proxy IP pool and providing the relevant operation interface, to break through the visit frequency limit of the target site, support a short time to mass data crawling.

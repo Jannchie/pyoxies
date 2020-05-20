@@ -11,16 +11,45 @@ from util import logger
 class ProxyPool():
   def __init__(self):
     super().__init__()
-    self.get_proxy_interval = 60 * 10
-    self.adjudicator_number = 16
+
+    self.get_proxy_interval = 60 * 30
+    self.review_interval = 60
+    self.pass_timeout = 3
+
+    self.adjudicator_number = 8
     self.reviewer_number = 4
+
     self.un_adjudge_proxy_queue = asyncio.Queue()
     self.review_proxy_queue = asyncio.Queue()
+
     self.total_judged = 0
     self.available_http_proxy_set = set()
     self.available_https_proxy_set = set()
     self.core_threading = threading.Thread(name="pool-core", target=self.__run)
     self.core_threading.start()
+
+  async def __param_adjust(self):
+    while True:
+      l = len(self.get_all_proxy())
+
+      if l < 200:
+        self.review_interval = 10
+        self.pass_timeout = 5
+      elif l < 300:
+        self.review_interval = 5
+        self.pass_timeout = 3
+      elif l < 500:
+        self.review_interval = 1
+        self.pass_timeout = 2
+      else:
+        self.review_interval = 0
+        self.pass_timeout = 1
+
+      if self.un_adjudge_proxy_queue.qsize() > 1000 and self.get_proxy_interval < 60 * 60:
+        self.get_proxy_interval += 60
+      elif self.un_adjudge_proxy_queue.qsize() < 200 and self.get_proxy_interval > 60 * 5:
+        self.get_proxy_interval -= 60
+      await asyncio.sleep(60)
 
   def __run(self):
     self.loop = asyncio.new_event_loop()
@@ -29,6 +58,7 @@ class ProxyPool():
     judge_tasks = [self.loop.create_task(self.__judge(i))
                    for i in range(self.adjudicator_number)]
     self.loop.create_task(self.__forever_put_proxy())
+    self.loop.create_task(self.__param_adjust())
     self.loop.create_task(self.__post_review())
     review_tasks = [self.loop.create_task(self.__review(i))
                     for i in range(self.reviewer_number)]
@@ -47,6 +77,7 @@ class ProxyPool():
 
   async def __print_state(self):
     while True:
+
       logger.info(
           f"Unadjudge Proxy Count: { self.un_adjudge_proxy_queue.qsize()}")
       logger.info(f"Total Adjudge Count: { self.total_judged}")
@@ -58,18 +89,21 @@ class ProxyPool():
           f"Available HTTPS Proxies Count: { https_count }")
       logger.info(
           f"Available Proxies Count: { http_count + https_count }")
+      logger.info("Get Interval: %s, Review Interval: %s, Pass Timeout: %s" % (self.get_proxy_interval,
+                                                                               self.review_interval,
+                                                                               self.pass_timeout))
       await asyncio.sleep(30)
     pass
 
   async def __post_review(self):
     while True:
-      await asyncio.sleep(60)
-      temp_proxies = list(self.available_http_proxy_set)
-      temp_proxies += list(self.available_https_proxy_set)
-      for proxy in temp_proxies:
-        await asyncio.sleep(0.01)
-        await self.review_proxy_queue.put(proxy)
-        pass
+
+      await asyncio.sleep(self.review_interval)
+      if len(self.get_all_proxy()) > 100:
+        temp_proxies = list(self.available_http_proxy_set)
+        temp_proxies += list(self.available_https_proxy_set)
+        for proxy in temp_proxies:
+          await self.review_proxy_queue.put(proxy)
 
   async def __review(self, i):
     # 格式化输出
@@ -79,7 +113,6 @@ class ProxyPool():
       i = str(i)
     session = aiohttp.ClientSession()
     while True:
-      await asyncio.sleep(1)
       if not self.review_proxy_queue.empty():
         proxy = await self.review_proxy_queue.get()
         is_pass, protocol = await self.__judge_ip(proxy, session, f'Reviewer    {i}')
@@ -152,9 +185,10 @@ class ProxyPool():
     '''
     session = aiohttp.ClientSession()
     while True:
-      asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
-      asyncio.ensure_future(self.__get_proxy_from_hua(session))
-      asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
+      if self.un_adjudge_proxy_queue.qsize() < 2000:
+        asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
+        asyncio.ensure_future(self.__get_proxy_from_hua(session))
+        asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
       await asyncio.sleep(self.get_proxy_interval)
     await session.close()
 
@@ -170,12 +204,8 @@ class ProxyPool():
     session = aiohttp.ClientSession()
     while True:
       try:
-        await asyncio.sleep(0.1)
         if not self.un_adjudge_proxy_queue.empty():
-          await asyncio.sleep(0.1)
-
           proxy = await self.un_adjudge_proxy_queue.get()
-
           is_pass, protocol = await self.__judge_ip(proxy, session, f'Adjudicator {i}')
           if is_pass:
             if protocol == 'http ':
@@ -224,7 +254,7 @@ class ProxyPool():
     code, t, protocol = await self.__get_judge_result(proxy, session)
     if code == 200:
       state = '\033[1;32m PASS \033[0m'
-      if t > 2:
+      if t > self.pass_timeout:
         state = '\033[1;33m SLOW \033[0m'
         flag = False
       else:
