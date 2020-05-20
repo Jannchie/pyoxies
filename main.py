@@ -17,7 +17,7 @@ class ProxyPool():
     self.pass_timeout = 3
 
     self.adjudicator_number = 8
-    self.reviewer_number = 4
+    self.reviewer_number = 16
 
     self.un_adjudge_proxy_queue = asyncio.Queue()
     self.review_proxy_queue = asyncio.Queue()
@@ -33,21 +33,21 @@ class ProxyPool():
       l = len(self.get_all_proxy())
 
       if l < 200:
-        self.review_interval = 10
+        self.review_interval = 5
         self.pass_timeout = 5
       elif l < 300:
-        self.review_interval = 5
+        self.review_interval = 2
         self.pass_timeout = 3
       elif l < 500:
-        self.review_interval = 1
+        self.review_interval = 0
         self.pass_timeout = 2
       else:
         self.review_interval = 0
         self.pass_timeout = 1
 
-      if self.un_adjudge_proxy_queue.qsize() > 1000 and self.get_proxy_interval < 60 * 60:
+      if self.un_adjudge_proxy_queue.qsize() > 240 and self.get_proxy_interval < 60 * 60:
         self.get_proxy_interval += 60
-      elif self.un_adjudge_proxy_queue.qsize() < 200 and self.get_proxy_interval > 60 * 5:
+      elif self.un_adjudge_proxy_queue.qsize() < 240 and self.get_proxy_interval > 60 * 5:
         self.get_proxy_interval -= 60
       await asyncio.sleep(60)
 
