@@ -6,6 +6,7 @@ from lxml.etree import HTML
 import threading
 import logging
 from util import logger
+from asyncio import TimeoutError
 
 
 class ProxyPool():
@@ -16,8 +17,8 @@ class ProxyPool():
     self.review_interval = 60
     self.pass_timeout = 3
 
-    self.adjudicator_number = 8
-    self.reviewer_number = 16
+    self.adjudicator_number = 4
+    self.reviewer_number = 8
 
     self.un_adjudge_proxy_queue = asyncio.Queue()
     self.review_proxy_queue = asyncio.Queue()
@@ -97,9 +98,8 @@ class ProxyPool():
 
   async def __post_review(self):
     while True:
-
       await asyncio.sleep(self.review_interval)
-      if len(self.get_all_proxy()) > 100:
+      if len(self.get_all_proxy()) > 100 and self.review_proxy_queue.qsize() != 0:
         temp_proxies = list(self.available_http_proxy_set)
         temp_proxies += list(self.available_https_proxy_set)
         for proxy in temp_proxies:
@@ -136,7 +136,7 @@ class ProxyPool():
     try:
       for cata in ['gaoni', 'http', 'https']:
         for page in range(1, 6):
-          res = await session.get(f'http://www.nimadaili.com/{cata}/{page}/')
+          res = await session.get(f'http://www.nimadaili.com/{cata}/{page}/', timeout=10)
           text = await res.text()
           html = HTML(text)
           for data in html.xpath('//table/tbody/tr'):
@@ -153,7 +153,7 @@ class ProxyPool():
       url = 'https://ip.jiangxianli.com/api/proxy_ips?page={}'
       for page in range(1, 30):
         pass
-        res = await session.get(url.format(page))
+        res = await session.get(url.format(page), timeout=10)
         j = await res.json()
         for proxy_info in j['data']['data']:
           await self.put_proxy('http://{ip}:{port}'.format(**proxy_info))
@@ -169,11 +169,10 @@ class ProxyPool():
     '''
     try:
       url = 'http://106.15.91.109:22333/ok_ips'
-      res = await session.get(url)
+      res = await session.get(url, timeout=10)
       text = await res.text()
       adrs = text[1:-1].replace('\'', '').replace(' ', '').split(',')
       for adr in adrs:
-        await asyncio.sleep(0.1)
         await self.put_proxy(f'http://{adr}')
     except Exception as e:
       logging.exception(e)
@@ -185,7 +184,7 @@ class ProxyPool():
     '''
     session = aiohttp.ClientSession()
     while True:
-      if self.un_adjudge_proxy_queue.qsize() < 2000:
+      if self.un_adjudge_proxy_queue.qsize() < 240:
         asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
         asyncio.ensure_future(self.__get_proxy_from_hua(session))
         asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
@@ -245,8 +244,6 @@ class ProxyPool():
         else:
           delta_t = datetime.now() - start_t
           return ('???', round(delta_t.total_seconds() / 2, 1), '?????')
-      if res.status != 200:
-        return (res.status, 9.9, protocol)
       delta_t = datetime.now() - start_t
       return (res.status, round(delta_t.total_seconds() / 2, 1), protocol)
 
@@ -266,3 +263,7 @@ class ProxyPool():
       protocol += ' '
     logger.info(f'[ {name} ] [{state}] ({code}) {t}s <{protocol} {proxy}>')
     return flag, protocol
+
+
+if __name__ == "__main__":
+  ProxyPool()
