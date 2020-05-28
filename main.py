@@ -17,8 +17,8 @@ class ProxyPool():
     self.review_interval = 60
     self.pass_timeout = 3
 
-    self.adjudicator_number = 4
-    self.reviewer_number = 8
+    self.adjudicator_number = 16
+    self.reviewer_number = 16
 
     self.un_adjudge_proxy_queue = asyncio.Queue()
     self.review_proxy_queue = asyncio.Queue()
@@ -59,7 +59,7 @@ class ProxyPool():
     judge_tasks = [self.loop.create_task(self.__judge(i))
                    for i in range(self.adjudicator_number)]
     self.loop.create_task(self.__forever_put_proxy())
-    self.loop.create_task(self.__param_adjust())
+    # self.loop.create_task(self.__param_adjust())
     self.loop.create_task(self.__post_review())
     review_tasks = [self.loop.create_task(self.__review(i))
                     for i in range(self.reviewer_number)]
@@ -98,8 +98,9 @@ class ProxyPool():
 
   async def __post_review(self):
     while True:
+      await asyncio.sleep(1)
       await asyncio.sleep(self.review_interval)
-      if len(self.get_all_proxy()) > 100 and self.review_proxy_queue.qsize() != 0:
+      if len(self.get_all_proxy()) > 100 and self.review_proxy_queue.qsize() == 0:
         temp_proxies = list(self.available_http_proxy_set)
         temp_proxies += list(self.available_https_proxy_set)
         for proxy in temp_proxies:
@@ -129,13 +130,33 @@ class ProxyPool():
   async def put_proxy(self, proxy):
     await self.un_adjudge_proxy_queue.put(proxy)
 
+  async def __get_proxy_from_89(self, session):
+    '''
+    Crawl data from 89ip.
+    '''
+    url = 'http://www.89ip.cn/index_%d.html'
+    try:
+      for page in range(1, 10):
+        res = await session.get(url % page, timeout=10)
+        text = await res.text()
+        html = HTML(text)
+        for data in html.xpath('//table/tbody/tr'):
+          row = data.xpath('.//td/text()')
+          address = row[0].replace('\n', '').replace('\t', '')
+          port = row[1].replace('\n', '').replace('\t', '')
+          await self.put_proxy(f'http://{address}:{port}')
+        await asyncio.sleep(3)
+    except Exception as e:
+      logging.exception(e)
+      pass
+
   async def __get_proxy_from_nimadaili(self, session):
     '''
     Crawl data from nimadaili.
     '''
     try:
       for cata in ['gaoni', 'http', 'https']:
-        for page in range(1, 6):
+        for page in range(1, 10):
           res = await session.get(f'http://www.nimadaili.com/{cata}/{page}/', timeout=10)
           text = await res.text()
           html = HTML(text)
@@ -143,7 +164,7 @@ class ProxyPool():
             row = data.xpath('.//td/text()')
             address = row[0]
             await self.put_proxy(f'http://{address}')
-          await asyncio.sleep(10)
+          await asyncio.sleep(3)
     except Exception as e:
       logging.exception(e)
       pass
@@ -151,14 +172,14 @@ class ProxyPool():
   async def __get_proxy_from_jiangxianli(self, session):
     try:
       url = 'https://ip.jiangxianli.com/api/proxy_ips?page={}'
-      for page in range(1, 30):
+      for page in range(1, 50):
         pass
         res = await session.get(url.format(page), timeout=10)
         j = await res.json()
         for proxy_info in j['data']['data']:
           await self.put_proxy('http://{ip}:{port}'.format(**proxy_info))
           pass
-        await asyncio.sleep(10)
+        await asyncio.sleep(3)
     except Exception as e:
       logging.exception(e)
       pass
@@ -184,11 +205,12 @@ class ProxyPool():
     '''
     session = aiohttp.ClientSession()
     while True:
-      if self.un_adjudge_proxy_queue.qsize() < 240:
+      if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) < 100:
+        asyncio.ensure_future(self.__get_proxy_from_89(session))
         asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
         asyncio.ensure_future(self.__get_proxy_from_hua(session))
         asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
-      await asyncio.sleep(self.get_proxy_interval)
+      await asyncio.sleep(1)
     await session.close()
 
   async def __judge(self, i):
@@ -228,11 +250,11 @@ class ProxyPool():
       start_t = datetime.now()
       try:
         res = await session.get(
-            f'{protocol}://api.bilibili.com/x/relation/stat?vmid=7', proxy=proxy, timeout=4)
+            f'{protocol}://api.bilibili.com/x/relation/stat?vmid=7', proxy=proxy, timeout=3)
         j = await res.json()
         mid_1 = j['data']['mid']
         res = await session.get(
-            f'{protocol}://api.bilibili.com/x/relation/stat?vmid=1850091', proxy=proxy, timeout=4)
+            f'{protocol}://api.bilibili.com/x/relation/stat?vmid=1850091', proxy=proxy, timeout=3)
         j = await res.json()
         mid_2 = j['data']['mid']
         if mid_1 == mid_2:

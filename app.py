@@ -5,7 +5,6 @@ from logging.config import dictConfig
 from flask import request
 from flask import Flask, jsonify
 from random import randint
-import schedule
 from util import logger
 
 app = Flask(__name__)
@@ -27,7 +26,7 @@ def hello_world():
     </tr>
     <tr>
       <td>[GET]</td>
-      <td>/proxy</td>
+      <td>/proxies</td>
       <td>获得所有的代理</td>
     </tr>
     <tr>
