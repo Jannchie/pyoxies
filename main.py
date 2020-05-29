@@ -118,10 +118,8 @@ class ProxyPool():
         proxy = await self.review_proxy_queue.get()
         is_pass, protocol = await self.__judge_ip(proxy, session, f'Reviewer    {i}')
         if not is_pass:
-          if protocol == 'http ':
-            self.available_http_proxy_set.discard(proxy)
-          else:
-            self.available_https_proxy_set.discard(proxy)
+          self.available_http_proxy_set.discard(proxy)
+          self.available_https_proxy_set.discard(proxy)
         self.review_proxy_queue.task_done()
       else:
         await asyncio.sleep(1)
