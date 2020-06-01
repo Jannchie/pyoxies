@@ -17,6 +17,9 @@ class ProxyPool():
     self.review_interval = 60
     self.pass_timeout = 3
 
+    self.review_threshold = 200
+    self.fetch_threshold = 400
+
     self.adjudicator_number = 16
     self.reviewer_number = 16
 
@@ -100,7 +103,7 @@ class ProxyPool():
     while True:
       await asyncio.sleep(1)
       await asyncio.sleep(self.review_interval)
-      if len(self.get_all_proxy()) > 100 and self.review_proxy_queue.qsize() == 0:
+      if len(self.get_all_proxy()) >= self.review_threshold and self.review_proxy_queue.qsize() == 0:
         temp_proxies = list(self.available_http_proxy_set)
         temp_proxies += list(self.available_https_proxy_set)
         for proxy in temp_proxies:
@@ -147,6 +150,26 @@ class ProxyPool():
     except Exception as e:
       logging.exception(e)
       pass
+
+  async def __get_proxy_from_xiaohuan(self, session):
+    url = "https://ip.ihuan.me/tqdl.html"
+    payload = 'num=100&port=&kill_port=&address=&kill_address=&anonymity=&type=&post=&sort=&key=f343167f69876e8cdf2358fe5b4312ed'
+    headers = {
+        'authority': 'ip.ihuan.me',
+        'cache-control': 'max-age=0',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36 Edg/83.0.478.37',
+        'origin': 'https://ip.ihuan.me',
+        'content-type': 'application/x-www-form-urlencoded',
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-user': '?1',
+        'sec-fetch-dest': 'document',
+        'referer': 'https://ip.ihuan.me/ti.html',
+        'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
+        'cookie': '__cfduid=db74bb104dba56c03b5d518234a276ed01589718601; statistics=ab6bf820e8dc07c9d0c7d1067179ae16; Hm_lvt_8ccd0ef22095c2eebfe4cd6187dea829=1589718606,1589882793,1590673751,1591009362; Hm_lpvt_8ccd0ef22095c2eebfe4cd6187dea829=1591009492; __cfduid=dc380d92da55d15ecbb69a4ab53ff4ada1590674044'
+    }
 
   async def __get_proxy_from_nimadaili(self, session):
     '''
@@ -203,12 +226,12 @@ class ProxyPool():
     '''
     session = aiohttp.ClientSession()
     while True:
-      if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) < 100:
+      if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= fetch_threshold:
         asyncio.ensure_future(self.__get_proxy_from_89(session))
         asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
         asyncio.ensure_future(self.__get_proxy_from_hua(session))
         asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
-      await asyncio.sleep(1)
+      await asyncio.sleep(15)
     await session.close()
 
   async def __judge(self, i):
