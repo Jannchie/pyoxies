@@ -152,8 +152,9 @@ class ProxyPool():
       pass
 
   async def __get_proxy_from_xiaohuan(self, session):
+
     url = "https://ip.ihuan.me/tqdl.html"
-    payload = 'num=100&port=&kill_port=&address=&kill_address=&anonymity=&type=&post=&sort=&key=f343167f69876e8cdf2358fe5b4312ed'
+    payload = 'num=500&port=&kill_port=&address=&kill_address=&anonymity=&type=&post=&sort=&key=f343167f69876e8cdf2358fe5b4312ed'
     headers = {
         'authority': 'ip.ihuan.me',
         'cache-control': 'max-age=0',
@@ -170,6 +171,7 @@ class ProxyPool():
         'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
         'cookie': '__cfduid=db74bb104dba56c03b5d518234a276ed01589718601; statistics=ab6bf820e8dc07c9d0c7d1067179ae16; Hm_lvt_8ccd0ef22095c2eebfe4cd6187dea829=1589718606,1589882793,1590673751,1591009362; Hm_lpvt_8ccd0ef22095c2eebfe4cd6187dea829=1591009492; __cfduid=dc380d92da55d15ecbb69a4ab53ff4ada1590674044'
     }
+    await session.get(url)
 
   async def __get_proxy_from_nimadaili(self, session):
     '''
@@ -226,7 +228,7 @@ class ProxyPool():
     '''
     session = aiohttp.ClientSession()
     while True:
-      if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= fetch_threshold:
+      if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
         asyncio.ensure_future(self.__get_proxy_from_89(session))
         asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
         asyncio.ensure_future(self.__get_proxy_from_hua(session))
