@@ -225,7 +225,7 @@ class ProxyPool():
     ]
     for url in urls:
       try:
-        res = await session.get(url)
+        res = await session.get(url, timeout=10)
         html = HTML(await res.text())
         addresses = html.xpath(
             '//*[@id="raw"]/div/div/div[2]/textarea/text()')[0].split('\n')[3:]
@@ -243,11 +243,11 @@ class ProxyPool():
     session = aiohttp.ClientSession()
     while True:
       if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
-        # asyncio.ensure_future(self.__get_proxy_from_xiaohuan(session))
-        # asyncio.ensure_future(self.__get_proxy_from_89(session))
-        # asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
-        # asyncio.ensure_future(self.__get_proxy_from_hua(session))
-        # asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
+        asyncio.ensure_future(self.__get_proxy_from_xiaohuan(session))
+        asyncio.ensure_future(self.__get_proxy_from_89(session))
+        asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
+        asyncio.ensure_future(self.__get_proxy_from_hua(session))
+        asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
         asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
       await asyncio.sleep(15)
     await session.close()
