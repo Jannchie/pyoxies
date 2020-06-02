@@ -229,8 +229,8 @@ class ProxyPool():
       i = 5
       while i > 0:
         try:
-          if len(proxies) <= i:
-            i = 0
+          if len(proxies) <= idx:
+            idx = 0
           res = await session.get(url, timeout=10, proxy='' if len(proxies) == 0 else proxies[idx])
         except Exception:
           if len(proxies) < 10:
