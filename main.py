@@ -227,8 +227,9 @@ class ProxyPool():
     proxies = self.get_https_proxy()
     for url in urls:
       i = 5
+      res = None
       while i > 0:
-        asyncio.sleep(3)
+        await asyncio.sleep(3)
         try:
           if len(proxies) <= idx:
             idx = 0
