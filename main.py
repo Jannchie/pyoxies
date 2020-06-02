@@ -81,7 +81,6 @@ class ProxyPool():
 
   async def __print_state(self):
     while True:
-
       logger.info(
           f"Unadjudge Proxy Count: { self.un_adjudge_proxy_queue.qsize()}")
       logger.info(f"Total Adjudge Count: { self.total_judged}")
@@ -137,7 +136,7 @@ class ProxyPool():
     '''
     url = 'http://www.89ip.cn/index_%d.html'
     try:
-      for page in range(1, 10):
+      for page in range(1, 20):
         res = await session.get(url % page, timeout=10)
         text = await res.text()
         html = HTML(text)
@@ -152,26 +151,20 @@ class ProxyPool():
       pass
 
   async def __get_proxy_from_xiaohuan(self, session):
-
-    url = "https://ip.ihuan.me/tqdl.html"
-    payload = 'num=500&port=&kill_port=&address=&kill_address=&anonymity=&type=&post=&sort=&key=f343167f69876e8cdf2358fe5b4312ed'
-    headers = {
-        'authority': 'ip.ihuan.me',
-        'cache-control': 'max-age=0',
-        'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.61 Safari/537.36 Edg/83.0.478.37',
-        'origin': 'https://ip.ihuan.me',
-        'content-type': 'application/x-www-form-urlencoded',
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
-        'sec-fetch-site': 'same-origin',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-user': '?1',
-        'sec-fetch-dest': 'document',
-        'referer': 'https://ip.ihuan.me/ti.html',
-        'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
-        'cookie': '__cfduid=db74bb104dba56c03b5d518234a276ed01589718601; statistics=ab6bf820e8dc07c9d0c7d1067179ae16; Hm_lvt_8ccd0ef22095c2eebfe4cd6187dea829=1589718606,1589882793,1590673751,1591009362; Hm_lpvt_8ccd0ef22095c2eebfe4cd6187dea829=1591009492; __cfduid=dc380d92da55d15ecbb69a4ab53ff4ada1590674044'
-    }
-    await session.get(url)
+    page = ''
+    url = "https://ip.ihuan.me/address/{}"
+    count = 0
+    while count < 10:
+      res = await session.get(url.format(page))
+      text = await res.text()
+      html = HTML(text)
+      for tr in html.xpath('//tbody/tr'):
+        ip = tr.xpath('./td[1]/a/text()')
+        port = tr.xpath('./td[2]/text()')
+        await self.put_proxy(f'http://{ip[0]}:{port[0]}')
+      page = html.xpath('//nav/ul/li/a/@href')[1]
+      await asyncio.sleep(1)
+      count += 1
 
   async def __get_proxy_from_nimadaili(self, session):
     '''
@@ -222,6 +215,27 @@ class ProxyPool():
       logging.exception(e)
       pass
 
+  async def __get_proxies_from_sslproxies(self, session):
+    urls = [
+        'https://free-proxy-list.net/',
+        'https://free-proxy-list.net/uk-proxy.html',
+        'https://www.us-proxy.org/',
+        'https://free-proxy-list.net/anonymous-proxy.html',
+        'https://www.sslproxies.org/'
+    ]
+    for url in urls:
+      try:
+        res = await session.get(url)
+        html = HTML(await res.text())
+        addresses = html.xpath(
+            '//*[@id="raw"]/div/div/div[2]/textarea/text()')[0].split('\n')[3:]
+        for adr in addresses:
+          await self.put_proxy('http://' + adr)
+        await asyncio.sleep(1)
+        pass
+      except Exception:
+        logger.exception(f"Parse {url} Fail")
+
   async def __forever_put_proxy(self):
     '''
     For adding a proxy task, crawl data from other website.
@@ -229,10 +243,12 @@ class ProxyPool():
     session = aiohttp.ClientSession()
     while True:
       if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
-        asyncio.ensure_future(self.__get_proxy_from_89(session))
-        asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
-        asyncio.ensure_future(self.__get_proxy_from_hua(session))
-        asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
+        # asyncio.ensure_future(self.__get_proxy_from_xiaohuan(session))
+        # asyncio.ensure_future(self.__get_proxy_from_89(session))
+        # asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
+        # asyncio.ensure_future(self.__get_proxy_from_hua(session))
+        # asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
+        asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
       await asyncio.sleep(15)
     await session.close()
 
@@ -288,7 +304,7 @@ class ProxyPool():
           continue
         else:
           delta_t = datetime.now() - start_t
-          return ('???', round(delta_t.total_seconds() / 2, 1), '?????')
+          return ('err', round(delta_t.total_seconds() / 2, 1), 'error')
       delta_t = datetime.now() - start_t
       return (res.status, round(delta_t.total_seconds() / 2, 1), protocol)
 
