@@ -217,24 +217,33 @@ class ProxyPool():
 
   async def __get_proxies_from_sslproxies(self, session):
     urls = [
+        'https://www.sslproxies.org/',
+        'https://www.us-proxy.org/',
         'https://free-proxy-list.net/',
         'https://free-proxy-list.net/uk-proxy.html',
-        'https://www.us-proxy.org/',
-        'https://free-proxy-list.net/anonymous-proxy.html',
-        'https://www.sslproxies.org/'
+        'https://free-proxy-list.net/anonymous-proxy.html'
     ]
+    idx = 0
+    proxies = self.get_https_proxy()
     for url in urls:
-      try:
-        res = await session.get(url, timeout=10)
-        html = HTML(await res.text())
-        addresses = html.xpath(
-            '//*[@id="raw"]/div/div/div[2]/textarea/text()')[0].split('\n')[3:]
-        for adr in addresses:
-          await self.put_proxy('http://' + adr)
-        await asyncio.sleep(1)
-        pass
-      except Exception:
-        logger.exception(f"Parse {url} Fail")
+      i = 5
+      while i > 0:
+        try:
+          res = await session.get(url, timeout=10, proxy='' if len(proxies) == 0 else proxies[idx])
+        except Exception:
+          if len(proxies) < 10:
+            proxies = self.get_https_proxy()
+          idx += 1
+          if (idx >= len(proxies)):
+            idx == 0
+          logger.exception(f"Parse {url} Fail")
+      html = HTML(await res.text())
+      addresses = html.xpath(
+          '//*[@id="raw"]/div/div/div[2]/textarea/text()')[0].split('\n')[3:]
+      for adr in addresses:
+        await self.put_proxy('http://' + adr)
+      await asyncio.sleep(1)
+      pass
 
   async def __forever_put_proxy(self):
     '''
