@@ -161,7 +161,7 @@ class ProxyPool():
       for tr in html.xpath('//tbody/tr'):
         ip = tr.xpath('./td[1]/a/text()')
         port = tr.xpath('./td[2]/text()')
-        await self.put_proxy(f'http://{ip[0]}:{port[0]}')
+        await self.put_proxy(f'http://{ip[0]}:{port[0]}', timeout=10)
       page = html.xpath('//nav/ul/li/a/@href')[1]
       await asyncio.sleep(1)
       count += 1
@@ -283,6 +283,7 @@ class ProxyPool():
             asyncio.ensure_future(self.__get_proxy_from_hua(session)),
             asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
         ]
+        # asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
         await asyncio.wait(tasks)
       await asyncio.sleep(15)
     await session.close()
