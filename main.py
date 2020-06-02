@@ -136,7 +136,7 @@ class ProxyPool():
     '''
     url = 'http://www.89ip.cn/index_%d.html'
     try:
-      for page in range(1, 20):
+      for page in range(1, 4):
         res = await session.get(url % page, timeout=10)
         text = await res.text()
         html = HTML(text)
@@ -154,7 +154,7 @@ class ProxyPool():
     page = ''
     url = "https://ip.ihuan.me/address/{}"
     count = 0
-    while count < 10:
+    while count < 4:
       res = await session.get(url.format(page))
       text = await res.text()
       html = HTML(text)
@@ -172,7 +172,7 @@ class ProxyPool():
     '''
     try:
       for cata in ['gaoni', 'http', 'https']:
-        for page in range(1, 10):
+        for page in range(1, 4):
           res = await session.get(f'http://www.nimadaili.com/{cata}/{page}/', timeout=10)
           text = await res.text()
           html = HTML(text)
@@ -188,7 +188,7 @@ class ProxyPool():
   async def __get_proxy_from_jiangxianli(self, session):
     try:
       url = 'https://ip.jiangxianli.com/api/proxy_ips?page={}'
-      for page in range(1, 50):
+      for page in range(1, 3):
         pass
         res = await session.get(url.format(page), timeout=10)
         j = await res.json()
@@ -209,7 +209,7 @@ class ProxyPool():
       res = await session.get(url, timeout=10)
       text = await res.text()
       adrs = text[1:-1].replace('\'', '').replace(' ', '').split(',')
-      for adr in adrs:
+      for adr in adrs[0:50]:
         await self.put_proxy(f'http://{adr}')
     except Exception as e:
       logging.exception(e)
@@ -262,7 +262,7 @@ class ProxyPool():
         asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
         asyncio.ensure_future(self.__get_proxy_from_hua(session))
         asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
-        # asyncio.ensure_future(self.__get_proxies_from_sslproxies(session)) quit
+        asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
       await asyncio.sleep(15)
     await session.close()
 
@@ -328,7 +328,7 @@ class ProxyPool():
       state = '\033[1;32m PASS \033[0m'
       if t > self.pass_timeout:
         state = '\033[1;33m SLOW \033[0m'
-        flag = False
+        flag = True
       else:
         flag = True
     else:
