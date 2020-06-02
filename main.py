@@ -17,8 +17,8 @@ class ProxyPool():
     self.review_interval = 60
     self.pass_timeout = 3
 
-    self.review_threshold = 200
-    self.fetch_threshold = 400
+    self.review_threshold = 50
+    self.fetch_threshold = 200
 
     self.adjudicator_number = 16
     self.reviewer_number = 16
@@ -136,7 +136,7 @@ class ProxyPool():
     '''
     url = 'http://www.89ip.cn/index_%d.html'
     try:
-      for page in range(1, 4):
+      for page in range(1, 3):
         res = await session.get(url % page, timeout=10)
         text = await res.text()
         html = HTML(text)
@@ -154,7 +154,7 @@ class ProxyPool():
     page = ''
     url = "https://ip.ihuan.me/address/{}"
     count = 0
-    while count < 4:
+    while count < 3:
       res = await session.get(url.format(page))
       text = await res.text()
       html = HTML(text)
@@ -172,7 +172,7 @@ class ProxyPool():
     '''
     try:
       for cata in ['gaoni', 'http', 'https']:
-        for page in range(1, 4):
+        for page in range(1, 3):
           res = await session.get(f'http://www.nimadaili.com/{cata}/{page}/', timeout=10)
           text = await res.text()
           html = HTML(text)
@@ -196,6 +196,25 @@ class ProxyPool():
           await self.put_proxy('http://{ip}:{port}'.format(**proxy_info))
           pass
         await asyncio.sleep(3)
+    except Exception as e:
+      logging.exception(e)
+      pass
+#
+
+  async def __get_proxy_from_kuai(self, session):
+    '''
+    Crawl data from kuai.
+    '''
+    try:
+      for page in range(1, 3):
+        url = f'https://www.kuaidaili.com/free/inha/{page}/'
+        res = await session.get(url, timeout=10)
+        text = await res.text()
+        html = HTML(text)
+        for data in html.xpath('//table/tbody/tr'):
+          ip = data.xpath('.//td[1]/text()')[0]
+          port = data.xpath('.//td[2]/text()')[0]
+          await self.put_proxy(f'http://{ip}:{port}')
     except Exception as e:
       logging.exception(e)
       pass
@@ -227,7 +246,6 @@ class ProxyPool():
     proxies = self.get_https_proxy()
     for url in urls:
       i = 5
-      res = None
       while i > 0:
         await asyncio.sleep(3)
         try:
@@ -235,6 +253,11 @@ class ProxyPool():
             idx = 0
           res = await session.get(url,  proxy='' if len(proxies) == 0 else proxies[idx], timeout=10)
           break
+          html = HTML(await res.text())
+          addresses = html.xpath(
+              '//*[@id="raw"]/div/div/div[2]/textarea/text()')[0].split('\n')[3:]
+          for adr in addresses:
+            await self.put_proxy('http://' + adr)
         except Exception:
           i -= 1
           if idx + 1 > len(proxies):
@@ -243,13 +266,7 @@ class ProxyPool():
           if (idx >= len(proxies)):
             idx == 0
           logger.exception(f"Parse {url} Fail")
-      html = HTML(await res.text())
-      addresses = html.xpath(
-          '//*[@id="raw"]/div/div/div[2]/textarea/text()')[0].split('\n')[3:]
-      for adr in addresses:
-        await self.put_proxy('http://' + adr)
       await asyncio.sleep(1)
-      pass
 
   async def __forever_put_proxy(self):
     '''
@@ -258,12 +275,15 @@ class ProxyPool():
     session = aiohttp.ClientSession()
     while True:
       if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
-        asyncio.ensure_future(self.__get_proxy_from_xiaohuan(session))
-        asyncio.ensure_future(self.__get_proxy_from_89(session))
-        asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
-        asyncio.ensure_future(self.__get_proxy_from_hua(session))
-        asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
-        asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
+        tasks = [
+            asyncio.ensure_future(self.__get_proxy_from_kuai(session)),
+            asyncio.ensure_future(self.__get_proxy_from_xiaohuan(session)),
+            asyncio.ensure_future(self.__get_proxy_from_89(session)),
+            asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session)),
+            asyncio.ensure_future(self.__get_proxy_from_hua(session)),
+            asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
+        ]
+        await asyncio.wait(tasks)
       await asyncio.sleep(15)
     await session.close()
 
