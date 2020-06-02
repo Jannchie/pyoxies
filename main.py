@@ -155,13 +155,13 @@ class ProxyPool():
     url = "https://ip.ihuan.me/address/{}"
     count = 0
     while count < 3:
-      res = await session.get(url.format(page))
+      res = await session.get(url.format(page), timeout=10)
       text = await res.text()
       html = HTML(text)
       for tr in html.xpath('//tbody/tr'):
         ip = tr.xpath('./td[1]/a/text()')
         port = tr.xpath('./td[2]/text()')
-        await self.put_proxy(f'http://{ip[0]}:{port[0]}', timeout=10)
+        await self.put_proxy(f'http://{ip[0]}:{port[0]}')
       page = html.xpath('//nav/ul/li/a/@href')[1]
       await asyncio.sleep(1)
       count += 1
