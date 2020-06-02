@@ -228,12 +228,15 @@ class ProxyPool():
     for url in urls:
       i = 5
       while i > 0:
+        asyncio.sleep(3)
         try:
           if len(proxies) <= idx:
             idx = 0
-          res = await session.get(url, timeout=10, proxy='' if len(proxies) == 0 else proxies[idx])
+          res = await session.get(url,  proxy='' if len(proxies) == 0 else proxies[idx], timeout=10)
+          break
         except Exception:
-          if len(proxies) < 10:
+          i -= 1
+          if idx + 1 > len(proxies):
             proxies = self.get_https_proxy()
           idx += 1
           if (idx >= len(proxies)):
@@ -259,7 +262,7 @@ class ProxyPool():
         asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session))
         asyncio.ensure_future(self.__get_proxy_from_hua(session))
         asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
-        asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
+        # asyncio.ensure_future(self.__get_proxies_from_sslproxies(session)) quit
       await asyncio.sleep(15)
     await session.close()
 
