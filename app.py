@@ -41,7 +41,7 @@ def hello_world():
     </tr>
     <tr>
       <td>[POST]</td>
-      <td>/proies</td>
+      <td>/proxy</td>
       <td>添加一个代理</td>
     </tr>
   </table>
@@ -68,7 +68,9 @@ def get_one():
   if request.method == 'GET':
     return jsonify({'proxies': pp.get_all_proxy()})
   elif request.method == 'POST':
-    pc.put_proxy(request.get_data().decode("utf-8"))
+    ip = request.get_data().decode("utf-8")
+    pp.put_proxy(ip)
+    pp.logger.info(f'Post: {ip}')
     return "SUCCESS"
 
 
