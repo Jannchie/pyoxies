@@ -130,6 +130,27 @@ class ProxyPool():
   async def put_proxy(self, proxy):
     await self.un_adjudge_proxy_queue.put(proxy)
 
+  def flask_put_proxy(self, proxy):
+    self.loop.create_task(self.un_adjudge_proxy_queue.put(proxy))
+
+  async def __get_proxy_from_free_proxy(self, session):
+    '''
+    Crawl data from 89ip.
+    '''
+    try:
+      # url = 'http://free-proxy.cz/zh/proxylist/country/all/all/ping/level1/%d'
+      # for page in range(1, 3):
+      #   res = await session.get(url % page, timeout=10)
+      #   text = await res.text()
+      #   html = HTML(text)
+      #   for data in html.xpath('//table/tbody/tr'):
+      #     pass
+      #   await asyncio.sleep(3)
+      pass
+    except Exception as e:
+      logging.exception(e)
+      pass
+
   async def __get_proxy_from_89(self, session):
     '''
     Crawl data from 89ip.
@@ -252,12 +273,12 @@ class ProxyPool():
           if len(proxies) <= idx:
             idx = 0
           res = await session.get(url,  proxy='' if len(proxies) == 0 else proxies[idx], timeout=10)
-          break
           html = HTML(await res.text())
           addresses = html.xpath(
               '//*[@id="raw"]/div/div/div[2]/textarea/text()')[0].split('\n')[3:]
           for adr in addresses:
             await self.put_proxy('http://' + adr)
+          break
         except Exception:
           i -= 1
           if idx + 1 > len(proxies):
@@ -276,14 +297,15 @@ class ProxyPool():
     while True:
       if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
         tasks = [
-            asyncio.ensure_future(self.__get_proxy_from_kuai(session)),
-            asyncio.ensure_future(self.__get_proxy_from_xiaohuan(session)),
-            asyncio.ensure_future(self.__get_proxy_from_89(session)),
-            asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session)),
-            asyncio.ensure_future(self.__get_proxy_from_hua(session)),
-            asyncio.ensure_future(self.__get_proxy_from_nimadaili(session))
+            asyncio.ensure_future(self.__get_proxy_from_free_proxy(session)),
+            # asyncio.ensure_future(self.__get_proxy_from_kuai(session)),
+            # asyncio.ensure_future(self.__get_proxy_from_xiaohuan(session)),
+            # asyncio.ensure_future(self.__get_proxy_from_89(session)),
+            # asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session)),
+            # asyncio.ensure_future(self.__get_proxy_from_hua(session)),
+            # asyncio.ensure_future(self.__get_proxy_from_nimadaili(session)),
+            # asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
         ]
-        # asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
         await asyncio.wait(tasks)
       await asyncio.sleep(15)
     await session.close()

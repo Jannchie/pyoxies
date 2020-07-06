@@ -69,8 +69,8 @@ def get_one():
     return jsonify({'proxies': pp.get_all_proxy()})
   elif request.method == 'POST':
     ip = request.get_data().decode("utf-8")
-    pp.put_proxy(ip)
-    pp.logger.info(f'Post: {ip}')
+    pp.flask_put_proxy(ip)
+    logger.info(f'Post: {ip}')
     return "SUCCESS"
 
 
