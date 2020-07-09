@@ -120,7 +120,7 @@ class ProxyPool():
     while True:
       if not self.review_proxy_queue.empty():
         proxy = await self.review_proxy_queue.get()
-        is_pass, protocol = await self.__judge_ip(proxy, session, f'Reviewer    {i}')
+        is_pass, protocol = await self.__judge_ip({'proxy': proxy, 'source': "Reviewer"}, session, f'Reviewer    {i}')
         if not is_pass:
           self.available_http_proxy_set.discard(proxy)
           self.available_https_proxy_set.discard(proxy)
