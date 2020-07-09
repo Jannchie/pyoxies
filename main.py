@@ -32,6 +32,8 @@ class ProxyPool():
     self.core_threading = threading.Thread(name="pool-core", target=self.__run)
     self.core_threading.start()
 
+    self.statistic = dict()
+
   async def __param_adjust(self):
     while True:
       l = len(self.get_all_proxy())
@@ -127,11 +129,12 @@ class ProxyPool():
         await asyncio.sleep(1)
     await session.close()
 
-  async def put_proxy(self, proxy):
-    await self.un_adjudge_proxy_queue.put(proxy)
+  async def put_proxy(self, proxy, source):
+    await self.un_adjudge_proxy_queue.put({'proxy': proxy, 'source': source})
 
   def flask_put_proxy(self, proxy):
-    self.loop.create_task(self.un_adjudge_proxy_queue.put(proxy))
+    self.loop.create_task(self.un_adjudge_proxy_queue.put(
+        {'proxy': proxy, 'source': 'server'}))
 
   async def __get_proxy_from_free_proxy(self, session):
     '''
@@ -151,21 +154,21 @@ class ProxyPool():
       logging.exception(e)
       pass
 
-  async def __get_proxy_from_89(self, session):
+  async def __get_proxy_from_yundaili(self, session):
     '''
-    Crawl data from 89ip.
+    Crawl data from yundaili.
     '''
-    url = 'http://www.89ip.cn/index_%d.html'
+    url = 'http://www.ip3366.net/free/?stype=4422&page={}'
     try:
       for page in range(1, 3):
-        res = await session.get(url % page, timeout=10)
+        res = await session.get(url.format(page), timeout=10)
         text = await res.text()
         html = HTML(text)
         for data in html.xpath('//table/tbody/tr'):
           row = data.xpath('.//td/text()')
           address = row[0].replace('\n', '').replace('\t', '')
           port = row[1].replace('\n', '').replace('\t', '')
-          await self.put_proxy(f'http://{address}:{port}')
+          await self.put_proxy(f'http://{address}:{port}', '云代理')
         await asyncio.sleep(3)
     except Exception as e:
       logging.exception(e)
@@ -182,7 +185,7 @@ class ProxyPool():
       for tr in html.xpath('//tbody/tr'):
         ip = tr.xpath('./td[1]/a/text()')
         port = tr.xpath('./td[2]/text()')
-        await self.put_proxy(f'http://{ip[0]}:{port[0]}')
+        await self.put_proxy(f'http://{ip[0]}:{port[0]}', '小幻代理')
       page = html.xpath('//nav/ul/li/a/@href')[1]
       await asyncio.sleep(1)
       count += 1
@@ -192,15 +195,15 @@ class ProxyPool():
     Crawl data from nimadaili.
     '''
     try:
-      for cata in ['gaoni', 'http', 'https']:
-        for page in range(1, 3):
+      for cata in ['gaoni']:
+        for page in range(1, 2):
           res = await session.get(f'http://www.nimadaili.com/{cata}/{page}/', timeout=10)
           text = await res.text()
           html = HTML(text)
           for data in html.xpath('//table/tbody/tr'):
             row = data.xpath('.//td/text()')
             address = row[0]
-            await self.put_proxy(f'http://{address}')
+            await self.put_proxy(f'http://{address}', '尼玛代理')
           await asyncio.sleep(3)
     except Exception as e:
       logging.exception(e)
@@ -208,13 +211,13 @@ class ProxyPool():
 
   async def __get_proxy_from_jiangxianli(self, session):
     try:
-      url = 'https://ip.jiangxianli.com/api/proxy_ips?page={}'
-      for page in range(1, 3):
+      url = 'https://ip.jiangxianli.com/api/proxy_ips?page={}&order_by=validated_at&order_rule=DESC'
+      for page in range(1, 10):
         pass
         res = await session.get(url.format(page), timeout=10)
         j = await res.json()
         for proxy_info in j['data']['data']:
-          await self.put_proxy('http://{ip}:{port}'.format(**proxy_info))
+          await self.put_proxy('http://{ip}:{port}'.format(**proxy_info), '江西安利')
           pass
         await asyncio.sleep(3)
     except Exception as e:
@@ -227,7 +230,7 @@ class ProxyPool():
     Crawl data from kuai.
     '''
     try:
-      for page in range(1, 3):
+      for page in range(1, 5):
         url = f'https://www.kuaidaili.com/free/inha/{page}/'
         res = await session.get(url, timeout=10)
         text = await res.text()
@@ -235,7 +238,7 @@ class ProxyPool():
         for data in html.xpath('//table/tbody/tr'):
           ip = data.xpath('.//td[1]/text()')[0]
           port = data.xpath('.//td[2]/text()')[0]
-          await self.put_proxy(f'http://{ip}:{port}')
+          await self.put_proxy(f'http://{ip}:{port}', '快代理')
     except Exception as e:
       logging.exception(e)
       pass
@@ -249,8 +252,25 @@ class ProxyPool():
       res = await session.get(url, timeout=10)
       text = await res.text()
       adrs = text[1:-1].replace('\'', '').replace(' ', '').split(',')
-      for adr in adrs[0:50]:
-        await self.put_proxy(f'http://{adr}')
+      for adr in adrs[0:100]:
+        await self.put_proxy(f'http://{adr}', '花儿不哭')
+    except Exception as e:
+      logging.exception(e)
+      pass
+
+  async def __get_proxy_from_xila(self, session):
+    '''
+    Crawl data from xiladaili.
+    '''
+    try:
+      for page in range(1, 2):
+        url = f'http://www.xiladaili.com/gaoni/{page}/'
+        res = await session.get(url, timeout=10)
+        text = await res.text()
+        html = HTML(text)
+        for data in html.xpath('//table/tbody/tr'):
+          ip = data.xpath('.//td[1]/text()')[0]
+          await self.put_proxy(f'http://{ip}', '西拉代理')
     except Exception as e:
       logging.exception(e)
       pass
@@ -277,7 +297,7 @@ class ProxyPool():
           addresses = html.xpath(
               '//*[@id="raw"]/div/div/div[2]/textarea/text()')[0].split('\n')[3:]
           for adr in addresses:
-            await self.put_proxy('http://' + adr)
+            await self.put_proxy('http://' + adr, 'sslproxies')
           break
         except Exception:
           i -= 1
@@ -297,13 +317,15 @@ class ProxyPool():
     while True:
       if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
         tasks = [
-            # asyncio.ensure_future(self.__get_proxy_from_free_proxy(session)),
             asyncio.ensure_future(self.__get_proxy_from_kuai(session)),
             asyncio.ensure_future(self.__get_proxy_from_xiaohuan(session)),
-            asyncio.ensure_future(self.__get_proxy_from_89(session)),
             asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session)),
             asyncio.ensure_future(self.__get_proxy_from_hua(session)),
             asyncio.ensure_future(self.__get_proxy_from_nimadaili(session)),
+            asyncio.ensure_future(self.__get_proxy_from_yundaili(session)),
+            asyncio.ensure_future(self.__get_proxy_from_xila(session)),
+            # asyncio.ensure_future(self.__get_proxy_from_free_proxy(session)),
+            # asyncio.ensure_future(self.__get_proxy_from_89(session)),__get_proxy_from_yundaili
             # asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
         ]
         await asyncio.wait(tasks)
@@ -323,13 +345,13 @@ class ProxyPool():
     while True:
       try:
         if not self.un_adjudge_proxy_queue.empty():
-          proxy = await self.un_adjudge_proxy_queue.get()
-          is_pass, protocol = await self.__judge_ip(proxy, session, f'Adjudicator {i}')
+          proxy_info = await self.un_adjudge_proxy_queue.get()
+          is_pass, protocol = await self.__judge_ip(proxy_info, session, f'Adjudicator {i}')
           if is_pass:
             if protocol == 'http ':
-              self.available_http_proxy_set.add(proxy)
+              self.available_http_proxy_set.add(proxy_info['proxy'])
             else:
-              self.available_https_proxy_set.add(proxy)
+              self.available_https_proxy_set.add(proxy_info['proxy'])
           self.total_judged += 1
           self.un_adjudge_proxy_queue.task_done()
           await asyncio.sleep(0.1)
@@ -366,7 +388,9 @@ class ProxyPool():
       delta_t = datetime.now() - start_t
       return (res.status, round(delta_t.total_seconds() / 2, 1), protocol)
 
-  async def __judge_ip(self, proxy, session, name):
+  async def __judge_ip(self, proxy_info, session, name):
+    proxy = proxy_info['proxy']
+    source = proxy_info['source']
     code, t, protocol = await self.__get_judge_result(proxy, session)
     if code == 200:
       state = '\033[1;32m PASS \033[0m'
@@ -380,7 +404,16 @@ class ProxyPool():
       flag = False
     if protocol == 'http':
       protocol += ' '
-    logger.info(f'[ {name} ] [{state}] ({code}) {t}s <{protocol} {proxy}>')
+    logger.info(
+        f'[ {name} ] [{state}] ({code}) {t}s <{protocol} {proxy}> From {source}')
+    if source in self.statistic:
+      self.statistic[source]['sum'] += 1
+      if flag:
+        self.statistic[source]['success'] += 1
+    else:
+      self.statistic[source] = {}
+      self.statistic[source]['sum'] = 1
+      self.statistic[source]['success'] = 1 if flag else 0
     return flag, protocol
 
 

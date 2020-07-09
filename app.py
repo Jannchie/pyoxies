@@ -17,26 +17,42 @@ pp = ProxyPool()
 
 @app.route('/')
 def hello_world():
-  return'''
+  http_count = len(pp.available_http_proxy_set)
+  https_count = len(pp.available_https_proxy_set)
+  state = f"<h1>总体运行状态</h1>"
+  state += f"Unadjudge Proxy Count: { pp.un_adjudge_proxy_queue.qsize()}<br>" + \
+      f"Total Adjudge Count: { pp.total_judged}<br>" + \
+      f"Available HTTP Proxies Count: { http_count }<br>" + \
+      f"Available HTTPS Proxies Count: { https_count }<br>" + \
+      f"Available Proxies Count: { http_count + https_count }<br>"
+  if len(pp.statistic) != 0:
+    state += f"<h1>各爬虫运行状态</h1>"
+  for source in pp.statistic:
+    state += f"{source} Sum: {pp.statistic[source]['sum']}, Pass: {pp.statistic[source]['success']}, Rate: { round(pp.statistic[source]['success'] / pp.statistic[source]['sum'] * 100,2)}%<br>"
+  return f'''
+  <div>
+    {state}
+  </div>
+  <h1>API列表</h1>
   <table>
     <tr>
       <td>[GET]</td>
-      <td>/proxy</td>
+      <td><a href="/proxy">/proxy</a></td>
       <td>获得所有的代理</td>
     </tr>
     <tr>
       <td>[GET]</td>
-      <td>/proxies</td>
+      <td><a href="/proxies">/proxies</a></td>
       <td>获得所有的代理</td>
     </tr>
     <tr>
       <td>[GET]</td>
-      <td>/proies/http</td>
+      <td><a href="/proxies/http">/proxies/http</a></td>
       <td>获得所有的HTTP代理</td>
     </tr>
     <tr>
       <td>[GET]</td>
-      <td>/proies/https</td>
+      <td><a href="/proxies/https">/proxies/https</a></td>
       <td>获得所有的HTTPS代理</td>
     </tr>
     <tr>
