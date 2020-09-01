@@ -2,6 +2,7 @@ from main import ProxyPool
 import logging
 from logging.config import dictConfig
 
+from datetime import datetime
 from flask import request
 from flask import Flask, jsonify
 from random import randint
@@ -12,14 +13,14 @@ app = Flask(__name__)
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.WARNING)
 
-pp = ProxyPool()
-
 
 @app.route('/')
 def hello_world():
   http_count = len(pp.available_http_proxy_set)
   https_count = len(pp.available_https_proxy_set)
   state = f"<h1>总体运行状态</h1>"
+  state += f"<div>运行时间: {datetime.now() - pp.start_time }</div>"
+  state += f"<div>鉴定效率: {pp.total_judged /( datetime.now() - pp.start_time).total_seconds()} 个/秒</div>"
   state += f"Unadjudge Proxy Count: { pp.un_adjudge_proxy_queue.qsize()}<br>" + \
       f"Total Adjudge Count: { pp.total_judged}<br>" + \
       f"Available HTTP Proxies Count: { http_count }<br>" + \
@@ -91,4 +92,5 @@ def get_one():
 
 
 if __name__ == "__main__":
+  pp = ProxyPool()
   app.run()

@@ -8,6 +8,10 @@ import logging
 from util import logger
 from asyncio import TimeoutError
 
+from concurrent.futures import ThreadPoolExecutor
+import concurrent
+io_pool_exc = ThreadPoolExecutor()
+
 
 class Res():
   def __init__(self):
@@ -17,16 +21,15 @@ class Res():
 class ProxyPool():
   def __init__(self):
     super().__init__()
+    self.start_time = datetime.now()
 
     self.get_proxy_interval = 60 * 30
     self.review_interval = 60
     self.pass_timeout = 3
-
-    self.review_threshold = 50
+    self.review_threshold = 25
     self.fetch_threshold = 200
-
-    self.adjudicator_number = 32
-    self.reviewer_number = 8
+    self.adjudicator_number = 256
+    self.reviewer_number = 128
 
     self.un_adjudge_proxy_queue = asyncio.Queue()
     self.review_proxy_queue = asyncio.Queue()
@@ -34,48 +37,25 @@ class ProxyPool():
     self.total_judged = 0
     self.available_http_proxy_set = set()
     self.available_https_proxy_set = set()
-    self.core_threading = threading.Thread(name="pool-core", target=self.__run)
-    self.core_threading.start()
-
-    self.statistic = dict()
-
-  async def __param_adjust(self):
-    while True:
-      l = len(self.get_all_proxy())
-
-      if l < 200:
-        self.review_interval = 5
-        self.pass_timeout = 5
-      elif l < 300:
-        self.review_interval = 2
-        self.pass_timeout = 3
-      elif l < 500:
-        self.review_interval = 0
-        self.pass_timeout = 2
-      else:
-        self.review_interval = 0
-        self.pass_timeout = 1
-
-      if self.un_adjudge_proxy_queue.qsize() > 240 and self.get_proxy_interval < 60 * 60:
-        self.get_proxy_interval += 60
-      elif self.un_adjudge_proxy_queue.qsize() < 240 and self.get_proxy_interval > 60 * 5:
-        self.get_proxy_interval -= 60
-      await asyncio.sleep(60)
-
-  def __run(self):
     self.loop = asyncio.new_event_loop()
     asyncio.set_event_loop(self.loop)
-    # loop.set_debug(True)
-    judge_tasks = [self.loop.create_task(self.__judge(i))
-                   for i in range(self.adjudicator_number)]
-    self.loop.create_task(self.__forever_put_proxy())
-    # self.loop.create_task(self.__param_adjust())
+
     self.loop.create_task(self.__post_review())
-    review_tasks = [self.loop.create_task(self.__review(i))
-                    for i in range(self.reviewer_number)]
+    self.loop.create_task(self.__forever_put_proxy())
     self.loop.create_task(self.__print_state())
+    self.statistic = dict()
+    self.core_threading = threading.Thread(
+        name=f"pool-core", target=self.__run)
+    self.core_threading.start()
+    self.adjudicator_semaphore = asyncio.Semaphore(self.adjudicator_number)
+    self.reviewer_semaphore = asyncio.Semaphore(self.reviewer_number)
+
+  def __run(self):
+    # loop.set_debug(True)
+    self.loop.create_task(self.__judge())
+    # self.loop.run_in_executor(io_pool_exc, f.readline)
+    self.loop.create_task(self.__review())
     self.loop.run_forever()
-    pass
 
   def get_all_proxy(self):
     return list(self.available_http_proxy_set) + list(self.available_https_proxy_set)
@@ -107,32 +87,30 @@ class ProxyPool():
 
   async def __post_review(self):
     while True:
-      await asyncio.sleep(1)
       await asyncio.sleep(self.review_interval)
       if len(self.get_all_proxy()) >= self.review_threshold and self.review_proxy_queue.qsize() == 0:
         temp_proxies = list(self.available_http_proxy_set)
         temp_proxies += list(self.available_https_proxy_set)
         for proxy in temp_proxies:
+          await asyncio.sleep(0.1)
           await self.review_proxy_queue.put(proxy)
 
-  async def __review(self, i):
-    # 格式化输出
-    if i < 10:
-      i = f'0{i}'
-    else:
-      i = str(i)
-    session = aiohttp.ClientSession()
+  async def __send_review(self, proxy):
+    async with self.reviewer_semaphore:
+      is_pass, protocol = await self.__judge_ip({'proxy': proxy, 'source': "Reviewer"}, f'Reviewer    ')
+    if not is_pass:
+      self.available_http_proxy_set.discard(proxy)
+      self.available_https_proxy_set.discard(proxy)
+
+  async def __review(self):
+    await asyncio.sleep(1)
     while True:
       if not self.review_proxy_queue.empty():
         proxy = await self.review_proxy_queue.get()
-        is_pass, protocol = await self.__judge_ip({'proxy': proxy, 'source': "Reviewer"}, session, f'Reviewer    {i}')
-        if not is_pass:
-          self.available_http_proxy_set.discard(proxy)
-          self.available_https_proxy_set.discard(proxy)
         self.review_proxy_queue.task_done()
+        self.loop.create_task(self.__send_review(proxy))
       else:
-        await asyncio.sleep(1)
-    await session.close()
+        await asyncio.sleep(0.1)
 
   async def put_proxy(self, proxy, source):
 
@@ -202,7 +180,7 @@ class ProxyPool():
     '''
     try:
       for cata in ['gaoni']:
-        for page in range(1, 2):
+        for page in range(1, 5):
           res = await session.get(f'http://www.nimadaili.com/{cata}/{page}/', timeout=10)
           text = await res.text()
           html = HTML(text)
@@ -218,7 +196,7 @@ class ProxyPool():
   async def __get_proxy_from_jiangxianli(self, session):
     try:
       url = 'https://ip.jiangxianli.com/api/proxy_ips?page={}&order_by=validated_at&order_rule=DESC'
-      for page in range(1, 10):
+      for page in range(1, 5):
         pass
         res = await session.get(url.format(page), timeout=10)
         j = await res.json()
@@ -269,7 +247,7 @@ class ProxyPool():
     Crawl data from xiladaili.
     '''
     try:
-      for page in range(1, 2):
+      for page in range(1, 5):
         url = f'http://www.xiladaili.com/gaoni/{page}/'
         res = await session.get(url, timeout=10)
         text = await res.text()
@@ -298,7 +276,7 @@ class ProxyPool():
         try:
           if len(proxies) <= idx:
             idx = 0
-          res = await session.get(url,  proxy='' if len(proxies) == 0 else proxies[idx], timeout=10)
+          res = await session.get(url,  proxy='', timeout=10)
           html = HTML(await res.text())
           addresses = html.xpath(
               '//*[@id="raw"]/div/div/div[2]/textarea/text()')[0].split('\n')[3:]
@@ -321,125 +299,146 @@ class ProxyPool():
     '''
     session = aiohttp.ClientSession()
     while True:
-      if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
-        tasks = [
-            # asyncio.ensure_future(self.__get_proxy_from_kuai(session)),
-            # asyncio.ensure_future(self.__get_proxy_from_xiaohuan(session)),
-            asyncio.ensure_future(self.__get_proxy_from_jiangxianli(session)),
-            # asyncio.ensure_future(self.__get_proxy_from_hua(session)),
-            asyncio.ensure_future(self.__get_proxy_from_nimadaili(session)),
-            # asyncio.ensure_future(self.__get_proxy_from_yundaili(session)),
-            asyncio.ensure_future(self.__get_proxy_from_xila(session)),
-            # asyncio.ensure_future(self.__get_proxy_from_free_proxy(session)),
-            # asyncio.ensure_future(self.__get_proxy_from_89(session)),__get_proxy_from_yundaili
-            asyncio.ensure_future(self.__get_proxies_from_sslproxies(session))
-        ]
-        await asyncio.wait(tasks)
-      await asyncio.sleep(15)
+      try:
+        if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
+          tasks = [
+              self.loop.create_task(self.__get_proxy_from_kuai(session)),
+              self.loop.create_task(self.__get_proxy_from_xiaohuan(session)),
+              self.loop.create_task(
+                  self.__get_proxy_from_jiangxianli(session)),
+              self.loop.create_task(self.__get_proxy_from_hua(session)),
+              self.loop.create_task(self.__get_proxy_from_nimadaili(session)),
+              self.loop.create_task(self.__get_proxy_from_yundaili(session)),
+              self.loop.create_task(self.__get_proxy_from_xila(session)),
+              self.loop.create_task(self.__get_proxy_from_free_proxy(session)),
+              # self.loop.create_task(self.__get_proxy_from_89(session)),
+              self.loop.create_task(
+                  self.__get_proxies_from_sslproxies(session))
+          ]
+          await asyncio.wait(tasks)
+        await asyncio.sleep(15)
+      except Exception as e:
+        self.logger.exception(e)
     await session.close()
 
-  async def __judge(self, i):
+  async def __send_judge(self, proxy_info):
+    async with self.adjudicator_semaphore:
+      is_pass, protocol = await self.__judge_ip(proxy_info, f'Adjudicator ')
+    if is_pass:
+      if protocol == 'http ':
+        self.available_http_proxy_set.add(proxy_info['proxy'])
+      else:
+        self.available_https_proxy_set.add(proxy_info['proxy'])
+    self.total_judged += 1
+
+  async def __judge(self):
     '''
     Judge task.
     '''
-    # 格式化输出
-    if i < 10:
-      i = f'0{i}'
-    else:
-      i = str(i)
-    session = aiohttp.ClientSession()
+    await asyncio.sleep(1)
     while True:
       try:
         if not self.un_adjudge_proxy_queue.empty():
           proxy_info = await self.un_adjudge_proxy_queue.get()
-          is_pass, protocol = await self.__judge_ip(proxy_info, session, f'Adjudicator {i}')
-          if is_pass:
-            if protocol == 'http ':
-              self.available_http_proxy_set.add(proxy_info['proxy'])
-            else:
-              self.available_https_proxy_set.add(proxy_info['proxy'])
-          self.total_judged += 1
           self.un_adjudge_proxy_queue.task_done()
-          await asyncio.sleep(0.05)
+          self.loop.create_task(self.__send_judge(proxy_info))
         else:
           await asyncio.sleep(1)
       except Exception as e:
         logging.exception(e)
-    await session.close()
 
-  async def __get_judge_result(self, proxy, session):
+  async def __get_judge_result(self, proxy):
     '''
     Successively judege whether the HTTPS request or the HTTP request can be successfully proxy.
     '''
-    for protocol in ['http', 'https']:
-      start_t = datetime.now()
-      retry = 3
-      count = 0
-      mid_1 = 1
-      mid_2 = 1
-      flag = 0
-      for i in range(retry):
-        res = Res()
-        try:
-          count += 1
-          res = await session.get(
-              f'{protocol}://api.bilibili.com/x/relation/stat?vmid=7', proxy=proxy, timeout=5)
-          if res.status == 200:
-            # 成功
-            j = await res.json()
-            mid_1 = j['data']['mid']
-            break
-          elif retry - 1 == i:
-            # 重试次数用完
-            if protocol == 'http':
-              flag = 1
-              continue
-            delta_t = datetime.now() - start_t
-            return (res.status, round(delta_t.total_seconds() / count, 1), 'error')
-        except Exception as e:
-          if retry - 1 == i:
-            if protocol == 'http':
-              flag = 1
-              continue
-            delta_t = datetime.now() - start_t
-            return (res.status, round(delta_t.total_seconds() / count, 1), 'error')
-      if flag == 1:
-        continue
-      for i in range(retry):
-        res = Res()
-        try:
-          count += 1
-          res = await session.get(
-              f'{protocol}://api.bilibili.com/x/relation/stat?vmid=1850091', proxy=proxy, timeout=5)
-          if res.status == 200:
-            j = await res.json()
-            mid_2 = j['data']['mid']
-            break
-          elif retry - 1 == i:
-            if protocol == 'http':
-              flag = 1
-              continue
-            delta_t = datetime.now() - start_t
-            return (res.status, round(delta_t.total_seconds() / count, 1), 'error')
-        except Exception as e:
-          if retry - 1 == i:
-            if protocol == 'http':
-              flag = 1
-              continue
-            delta_t = datetime.now() - start_t
-            return (res.status, round(delta_t.total_seconds() / count, 1), 'error')
-      if flag == 1:
-        continue
-      delta_t = datetime.now() - start_t
-      if mid_1 != mid_2:
-        return (res.status, round(delta_t.total_seconds() / count, 1), protocol)
-      else:
-        return ('cac', round(delta_t.total_seconds() / count, 1), 'cache')
+    try:
+      async with aiohttp.ClientSession() as session:
+        for protocol in ['http', 'https']:
+          delta_t = 0
+          start_t = datetime.now()
+          retry = 3
+          count = 0
+          mid_1 = 1
+          mid_2 = 1
+          flag = 0
+          for i in range(retry):
+            res = Res()
+            try:
+              count += 1
+              try:
+                res = await session.get(
+                    f'{protocol}://api.bilibili.com/x/relation/stat?vmid=7', proxy=proxy, timeout=5)
+              except concurrent.futures._base.TimeoutError as e:
+                continue
+              except aiohttp.client_exceptions.ServerDisconnectedError as e:
+                return ('dis', round(delta_t.total_seconds() / count, 1), 'disco')
+              if res.status == 200:
+                # 成功
+                j = await res.json()
+                mid_1 = j['data']['mid']
+                break
+              elif res.status in [500, 412]:
+                break
+              elif retry - 1 == i:
+                # 重试次数用完
+                if protocol == 'http':
+                  flag = 1
+                  continue
+                delta_t = datetime.now() - start_t
+                return (res.status, round(delta_t.total_seconds() / count, 1), 'error')
+            except Exception as e:
+              if retry - 1 == i:
+                if protocol == 'http':
+                  flag = 1
+                  continue
+                delta_t = datetime.now() - start_t
+                return (res.status, round(delta_t.total_seconds() / count, 1), 'error')
+          if flag == 1:
+            continue
+          for i in range(retry):
+            res = Res()
+            try:
+              count += 1
+              res = await session.get(
+                  f'{protocol}://api.bilibili.com/x/relation/stat?vmid=1850091', proxy=proxy, timeout=5)
+              if res.status == 200:
+                j = await res.json()
+                mid_2 = j['data']['mid']
+                break
+              elif retry - 1 == i:
+                if protocol == 'http':
+                  flag = 1
+                  continue
+                delta_t = datetime.now() - start_t
+                return (res.status, round(delta_t.total_seconds() / count, 1), 'error')
+            except Exception as e:
+              if retry - 1 == i:
+                if protocol == 'http':
+                  flag = 1
+                  continue
+                delta_t = datetime.now() - start_t
+                return (res.status, round(delta_t.total_seconds() / count, 1), 'error')
+          if flag == 1:
+            continue
+          delta_t = datetime.now() - start_t
+          if mid_1 != mid_2:
+            return (res.status, round(delta_t.total_seconds() / count, 1), protocol)
+          else:
+            return ('cac', round(delta_t.total_seconds() / count, 1), 'cache')
+        # await session.close()
+    except Exception as e:
+      pass
 
-  async def __judge_ip(self, proxy_info, session, name):
+  async def __judge_ip(self, proxy_info, name):
     proxy = proxy_info['proxy']
     source = proxy_info['source']
-    code, t, protocol = await self.__get_judge_result(proxy, session)
+    try:
+      code, t, protocol = await asyncio.wait_for(
+          self.__get_judge_result(proxy), 10)
+    except Exception as e:
+      code = "tim"
+      t = 9.9
+      protocol = 'timeo'
     if code == 200:
       state = '\033[1;32m PASS \033[0m'
       if t > self.pass_timeout:
