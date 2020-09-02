@@ -108,7 +108,8 @@ class ProxyPool():
       if not self.review_proxy_queue.empty():
         proxy = await self.review_proxy_queue.get()
         self.review_proxy_queue.task_done()
-        self.loop.create_task(self.__send_review(proxy))
+        async with self.reviewer_semaphore:
+          self.loop.create_task(self.__send_review(proxy))
       else:
         await asyncio.sleep(0.1)
 
@@ -341,7 +342,8 @@ class ProxyPool():
         if not self.un_adjudge_proxy_queue.empty():
           proxy_info = await self.un_adjudge_proxy_queue.get()
           self.un_adjudge_proxy_queue.task_done()
-          self.loop.create_task(self.__send_judge(proxy_info))
+          async with self.adjudicator_semaphore:
+            self.loop.create_task(self.__send_judge(proxy_info))
         else:
           await asyncio.sleep(1)
       except Exception as e:
