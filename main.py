@@ -303,15 +303,15 @@ class ProxyPool():
       try:
         if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
           tasks = [
-              self.loop.create_task(self.__get_proxy_from_kuai(session)),
+              # self.loop.create_task(self.__get_proxy_from_kuai(session)),
               self.loop.create_task(self.__get_proxy_from_xiaohuan(session)),
               self.loop.create_task(
                   self.__get_proxy_from_jiangxianli(session)),
               self.loop.create_task(self.__get_proxy_from_hua(session)),
               self.loop.create_task(self.__get_proxy_from_nimadaili(session)),
-              self.loop.create_task(self.__get_proxy_from_yundaili(session)),
+              # self.loop.create_task(self.__get_proxy_from_yundaili(session)),
               self.loop.create_task(self.__get_proxy_from_xila(session)),
-              self.loop.create_task(self.__get_proxy_from_free_proxy(session)),
+              # self.loop.create_task(self.__get_proxy_from_free_proxy(session)),
               # self.loop.create_task(self.__get_proxy_from_89(session)),
               self.loop.create_task(
                   self.__get_proxies_from_sslproxies(session))
