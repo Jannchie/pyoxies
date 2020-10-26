@@ -237,7 +237,7 @@ class ProxyPool():
       res = await session.get(url, timeout=10)
       text = await res.text()
       adrs = text[1:-1].replace('\'', '').replace(' ', '').split(',')
-      for adr in adrs[0:100]:
+      for adr in adrs[0:2000]:
         await self.put_proxy(f'http://{adr}', '花儿不哭')
     except Exception as e:
       logging.exception(e)
@@ -294,7 +294,7 @@ class ProxyPool():
           logger.exception(f"Parse {url} Fail")
       await asyncio.sleep(1)
 
-  async def __proxylistplus(self,session):
+  async def __proxylistplus(self, session):
     url = 'https://list.proxylistplus.com/Fresh-HTTP-Proxy-List-1'
     res = await session.get(url,  proxy='', timeout=10)
     html = HTML(await res.text())
@@ -302,7 +302,7 @@ class ProxyPool():
     for row in rows:
       r = row.xpath('./td/text()')
       await self.put_proxy(f'http://{r[0]}:{r[1]}', 'proxy list plus')
-      
+
   async def __forever_put_proxy(self):
     '''
     For adding a proxy task, crawl data from other website.
