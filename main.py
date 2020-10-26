@@ -233,7 +233,7 @@ class ProxyPool():
     Crawl data from hua er bu ku.
     '''
     try:
-      url = 'http://106.15.91.109:22333/ok_ips'
+      url = 'http://106.15.91.109:34333/ok_ips'
       res = await session.get(url, timeout=10)
       text = await res.text()
       adrs = text[1:-1].replace('\'', '').replace(' ', '').split(',')
@@ -294,6 +294,15 @@ class ProxyPool():
           logger.exception(f"Parse {url} Fail")
       await asyncio.sleep(1)
 
+  async def __proxylistplus(self,session):
+    url = 'https://list.proxylistplus.com/Fresh-HTTP-Proxy-List-1'
+    res = await session.get(url,  proxy='', timeout=10)
+    html = HTML(await res.text())
+    rows = html.xpath('//tr[@class="cells"]')[1:]
+    for row in rows:
+      r = row.xpath('./td/text()')
+      await self.put_proxy(f'http://{r[0]}:{r[1]}', 'proxy list plus')
+      
   async def __forever_put_proxy(self):
     '''
     For adding a proxy task, crawl data from other website.
@@ -304,6 +313,7 @@ class ProxyPool():
         if self.un_adjudge_proxy_queue.qsize() == 0 and len(self.get_all_proxy()) <= self.fetch_threshold:
           tasks = [
               # self.loop.create_task(self.__get_proxy_from_kuai(session)),
+              self.loop.create_task(self.__proxylistplus(session)),
               self.loop.create_task(self.__get_proxy_from_xiaohuan(session)),
               self.loop.create_task(
                   self.__get_proxy_from_jiangxianli(session)),
@@ -313,8 +323,8 @@ class ProxyPool():
               self.loop.create_task(self.__get_proxy_from_xila(session)),
               # self.loop.create_task(self.__get_proxy_from_free_proxy(session)),
               # self.loop.create_task(self.__get_proxy_from_89(session)),
-              self.loop.create_task(
-                  self.__get_proxies_from_sslproxies(session))
+              # self.loop.create_task(
+              #     self.__get_proxies_from_sslproxies(session))
           ]
           await asyncio.wait(tasks)
         await asyncio.sleep(15)
