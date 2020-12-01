@@ -233,7 +233,7 @@ class ProxyPool():
     Crawl data from hua er bu ku.
     '''
     try:
-      url = 'http://106.15.91.109:34333/ok_ips'
+      url = 'http://111.229.243.104:34333/ok_ips'
       res = await session.get(url, timeout=10)
       text = await res.text()
       adrs = text[1:-1].replace('\'', '').replace(' ', '').split(',')
